@@ -1,0 +1,6 @@
+version: 2
+intents:
+  - id: get_locations
+    description: List active supported locations.
+    parameters: {}
+    tool_id: admin_dump

@@ -1,0 +1,9 @@
+# Which specialties are offered at which location. Cardiology is intentionally offered at
+# both locations to exercise the BACKEND_UNIQUE_OR_CLARIFY ambiguous-location path (FR-004);
+# Pediatrics/Rheumatology are each single-location for the auto-resolve path.
+location_id,specialty_id,active
+loc-oakland,spec-neurology,true
+loc-oakland,spec-cardiology,true
+loc-oakland,spec-pediatrics,true
+loc-antioch,spec-cardiology,true
+loc-antioch,spec-rheumatology,true

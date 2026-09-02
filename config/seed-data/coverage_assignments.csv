@@ -1,0 +1,13 @@
+# Live-demo-only "who is on call" data — only loaded when SEED_LIVE_DEMO_COVERAGE=true
+# (see .env). Never used by the automated test suite (tests insert their own
+# CoverageAssignment rows tied to a fixed test clock).
+#
+# starts_offset_hours / ends_offset_hours are hours relative to "now" at startup (not
+# literal timestamps), so this data stays valid no matter when the app is restarted.
+# role_code must match a code in on_call_roles.csv.
+id,provider_id,specialty_id,location_id,role_code,starts_offset_hours,ends_offset_hours
+assignment-live-oakland-neurology,provider-avery-chen,spec-neurology,loc-oakland,PRIMARY_ONCALL,-48,216
+assignment-live-oakland-cardiology,provider-jordan-lee,spec-cardiology,loc-oakland,PRIMARY_ONCALL,-48,216
+assignment-live-oakland-pediatrics,provider-riley-morgan,spec-pediatrics,loc-oakland,PRIMARY_ONCALL,-48,216
+assignment-live-antioch-cardiology,provider-jordan-lee,spec-cardiology,loc-antioch,PRIMARY_ONCALL,-48,216
+assignment-live-antioch-rheumatology,provider-sam-patel,spec-rheumatology,loc-antioch,PRIMARY_ONCALL,-48,216

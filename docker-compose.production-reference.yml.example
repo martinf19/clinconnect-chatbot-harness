@@ -1,0 +1,39 @@
+# NOT used by the local POC (see docs/11-LOCAL-DEVELOPMENT.md and
+# planning/PHASE-STATUS.md). The POC runs on H2 (embedded) and Spring
+# in-memory conversation state; no containers are required.
+#
+# Kept only as an illustrative reference for a possible future production
+# PostgreSQL/Redis deployment (docs/03-ARCHITECTURE.md "Future Production
+# Target"). Renamed off the `docker-compose.yml` default filename so it is
+# never auto-discovered/started by `docker compose up`.
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-clinconnect}
+      POSTGRES_USER: ${POSTGRES_USER:-clinconnect_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-local-only}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - clinconnect_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clinconnect_app} -d ${POSTGRES_DB:-clinconnect}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  clinconnect_postgres_data:

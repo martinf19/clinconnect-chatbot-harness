@@ -1,0 +1,7 @@
+# contact_type is one of: MOBILE, OFFICE, TIE_LINE, PAGER, CHART_CHAT, BACKLINE (case-insensitive).
+id,provider_id,contact_type,value,active
+contact-avery-chen-pager,provider-avery-chen,PAGER,555-0104,true
+contact-avery-chen-mobile,provider-avery-chen,MOBILE,555-0111,true
+contact-jordan-lee-office,provider-jordan-lee,OFFICE,555-0200,true
+contact-riley-morgan-pager,provider-riley-morgan,PAGER,555-0305,true
+contact-sam-patel-pager,provider-sam-patel,PAGER,555-0410,true

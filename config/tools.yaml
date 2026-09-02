@@ -1,0 +1,140 @@
+version: 2
+
+policy:
+  execution_owner: spring_boot
+  mapping_source: config_intent_tool_mapping
+  llm_returns_tool_id: false
+  llm_direct_execution: false
+  arbitrary_sql_allowed: false
+  arbitrary_url_allowed: false
+  unknown_tool_behavior: fail_closed
+  canonical_ids_required: true
+
+common_result_status:
+  - FOUND
+  - NO_MATCH
+  - AMBIGUOUS
+
+tools:
+  get_locations:
+    arguments: {}
+    authorization_scope: chatbot.locations.read
+
+  get_specialties:
+    arguments:
+      location_id:
+        type: canonical_location_id
+        required: true
+    authorization_scope: chatbot.specialties.read
+
+  get_department_info:
+    arguments:
+      location_id:
+        type: canonical_location_id
+        required: true
+      specialty_id:
+        type: canonical_specialty_id
+        required: true
+    authorization_scope: chatbot.department.read
+
+  get_oncall_now:
+    arguments:
+      location_id:
+        type: canonical_location_id
+        required: true
+      specialty_id:
+        type: canonical_specialty_id
+        required: true
+      role_code:
+        type: canonical_role_code
+        required: false
+      reference_time:
+        type: trusted_datetime
+        required: true
+        source: spring_clock
+    authorization_scope: chatbot.oncall.read
+
+  get_oncall_schedule:
+    arguments:
+      location_id:
+        type: canonical_location_id
+        required: true
+      specialty_id:
+        type: canonical_specialty_id
+        required: true
+      role_code:
+        type: canonical_role_code
+        required: false
+      start_at:
+        type: trusted_datetime
+        required: true
+        source: spring_time_normalizer
+      end_at:
+        type: trusted_datetime
+        required: true
+        source: spring_time_normalizer
+    authorization_scope: chatbot.oncall.read
+
+  get_contact_info:
+    arguments:
+      provider_id:
+        type: canonical_provider_id
+        required: true
+      contact_type:
+        type: contact_type
+        required: false
+        allowed_values:
+          - MOBILE
+          - OFFICE
+          - TIE_LINE
+          - PAGER
+          - CHART_CHAT
+          - BACKLINE
+    authorization_scope: chatbot.contacts.read
+
+  get_pcconsult_info:
+    arguments:
+      location_id:
+        type: canonical_location_id
+        required: true
+      specialty_id:
+        type: canonical_specialty_id
+        required: true
+      time_context:
+        type: time_context
+        required: false
+        allowed_values:
+          - DAYTIME
+          - AFTER_HOURS
+          - WEEKEND
+      declared_urgency:
+        type: declared_urgency
+        required: false
+        allowed_values:
+          - URGENT
+          - NON_URGENT
+    authorization_scope: chatbot.consult_routing.read
+
+  chart_chat_guidance:
+    arguments:
+      location_id:
+        type: canonical_location_id
+        required: true
+      specialty_id:
+        type: canonical_specialty_id
+        required: true
+      time_context:
+        type: time_context
+        required: false
+        allowed_values:
+          - DAYTIME
+          - AFTER_HOURS
+          - WEEKEND
+    authorization_scope: chatbot.consult_routing.read
+
+  role_explanation:
+    arguments:
+      role_code:
+        type: canonical_role_code
+        required: true
+    authorization_scope: chatbot.roles.read

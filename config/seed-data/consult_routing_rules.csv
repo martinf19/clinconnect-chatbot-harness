@@ -1,0 +1,10 @@
+# category: CONSULT_ROUTING or CHART_CHAT_GUIDANCE.
+# time_context (optional): DAYTIME, AFTER_HOURS, or WEEKEND.
+# declared_urgency (optional): URGENT or NON_URGENT.
+# Leave time_context/declared_urgency blank when not applicable to the row.
+id,location_id,specialty_id,category,time_context,declared_urgency,routing_text,active
+rule-oakland-neurology-daytime,loc-oakland,spec-neurology,CONSULT_ROUTING,DAYTIME,,"Route daytime Neurology consults through the Oakland Neurology department line.",true
+rule-oakland-neurology-after-hours,loc-oakland,spec-neurology,CONSULT_ROUTING,AFTER_HOURS,,"Route after-hours Neurology consults to the on-call Neurology provider via page.",true
+rule-oakland-neurology-urgent,loc-oakland,spec-neurology,CONSULT_ROUTING,,URGENT,"Urgent Neurology consults should be routed directly to the on-call Neurology provider via page, regardless of time of day.",true
+rule-antioch-rheumatology-daytime,loc-antioch,spec-rheumatology,CONSULT_ROUTING,DAYTIME,,"Route daytime Rheumatology consults through the Antioch Rheumatology department line.",true
+guidance-oakland-neurology,loc-oakland,spec-neurology,CHART_CHAT_GUIDANCE,,,"Use Chart Chat for non-urgent secure messages to Oakland Neurology; urgent requests must be phoned in.",true

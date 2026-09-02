@@ -1,0 +1,21 @@
+# Local environment
+.env
+
+# Frontend (React + Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Backend (Spring Boot + Maven)
+backend/target/
+backend/data/
+
+# AI service (Python + FastAPI)
+ai-service/.venv/
+ai-service/__pycache__/
+ai-service/**/__pycache__/
+ai-service/.pytest_cache/
+ai-service/*.egg-info/
+
+# OS
+.DS_Store

@@ -1,0 +1,195 @@
+version: 2
+suite: ai_interpretation
+
+cases:
+  - id: current_oncall_basic
+    input:
+      message: "Who is on call for Cardiology?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_oncall_now
+      parameters:
+        specialty_text: "Cardiology"
+        time_expression:
+          kind: CURRENT
+
+  - id: current_oncall_location
+    input:
+      message: "Who is covering Neurology in Oakland right now?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_oncall_now
+      parameters:
+        location_text: "Oakland"
+        specialty_text: "Neurology"
+        time_expression:
+          kind: CURRENT
+
+  - id: schedule_today
+    input:
+      message: "Who is covering Cardiology today?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_oncall_schedule
+      parameters:
+        specialty_text: "Cardiology"
+        time_expression:
+          kind: TODAY
+
+  - id: schedule_tonight
+    input:
+      message: "Who is on call for Neurology tonight?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_oncall_schedule
+      parameters:
+        specialty_text: "Neurology"
+        time_expression:
+          kind: TONIGHT
+
+  - id: schedule_tomorrow
+    input:
+      message: "Who is on call for Pediatrics tomorrow?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_oncall_schedule
+      parameters:
+        specialty_text: "Pediatrics"
+        time_expression:
+          kind: TOMORROW
+
+  - id: schedule_weekend
+    input:
+      message: "Who covers Cardiology this weekend in Oakland?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_oncall_schedule
+      parameters:
+        location_text: "Oakland"
+        specialty_text: "Cardiology"
+        time_expression:
+          kind: WEEKEND
+
+  - id: schedule_specific_date
+    input:
+      message: "Who is covering Neurology in Oakland on September 3, 2026?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_oncall_schedule
+      parameters:
+        location_text: "Oakland"
+        specialty_text: "Neurology"
+        time_expression:
+          kind: SPECIFIC_DATE
+          specific_date: "2026-09-03"
+
+  - id: alias_is_raw_not_canonical_id
+    input:
+      message: "Who has Neuro call in Oakland?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_oncall_now
+      parameters:
+        specialty_text: "Neuro"
+        location_text: "Oakland"
+
+  - id: get_locations
+    input:
+      message: "What locations can I search?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_locations
+
+  - id: get_specialties
+    input:
+      message: "What specialties are available in Oakland?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_specialties
+      parameters:
+        location_text: "Oakland"
+
+  - id: department_info
+    input:
+      message: "Give me the department information for Neurology in Oakland."
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_department_info
+      parameters:
+        location_text: "Oakland"
+        specialty_text: "Neurology"
+
+  - id: contact_from_context
+    input:
+      message: "How can I reach them?"
+      session_context:
+        last_result:
+          has_single_provider: true
+          provider_display_name: "Dr. Avery Chen"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_contact_info
+      parameters:
+        provider_reference:
+          kind: LAST_RESULT_PROVIDER
+
+  - id: contact_pager
+    input:
+      message: "What is the pager number for Dr. Avery Chen?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_contact_info
+      parameters:
+        provider_reference:
+          kind: EXPLICIT_TEXT
+          text: "Dr. Avery Chen"
+        contact_type: PAGER
+
+  - id: consult_routing
+    input:
+      message: "What is the consult routing for Antioch Rheumatology?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_pcconsult_info
+      parameters:
+        location_text: "Antioch"
+        specialty_text: "Rheumatology"
+
+  - id: declared_urgent
+    input:
+      message: "What is the urgent consult routing for Rheumatology in Antioch?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: triage_consult
+      parameters:
+        location_text: "Antioch"
+        specialty_text: "Rheumatology"
+        declared_urgency: URGENT
+
+  - id: chart_chat
+    input:
+      message: "Who should I Chart Chat for Rheumatology in Antioch?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: chart_chat_guidance
+      parameters:
+        location_text: "Antioch"
+        specialty_text: "Rheumatology"
+
+  - id: role_explanation
+    input:
+      message: "What does day call mean?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: role_explanation
+      parameters:
+        role_text: "day call"
+
+  - id: missing_location_for_specialties
+    input:
+      message: "What specialties are available?"
+    expected:
+      interpretation_status: INTERPRETED
+      intent_id: get_specialties
+      missing_parameters:
+        - location_text

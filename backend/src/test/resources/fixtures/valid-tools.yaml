@@ -1,0 +1,5 @@
+version: 2
+tools:
+  get_locations:
+    arguments: {}
+    authorization_scope: chatbot.locations.read

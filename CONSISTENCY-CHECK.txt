@@ -1,0 +1,19 @@
+Intent-to-tool mappings are complete: PASS
+Every configured intent has positive AI evaluation: PASS
+FR-007 department intent/tool is represented: PASS
+TONIGHT is explicitly schedule-only: PASS
+Spring owns entity canonicalization: PASS
+Spring owns time normalization: PASS
+Spring owns clarification state: PASS
+Clarification resume algorithm is explicit: PASS
+Short invalid answer behavior is defined: PASS
+AI does not choose tools: PASS
+AI does not return canonical entity IDs: PASS
+AI does not return executable timestamps: PASS
+Confidence removed from execution contract: PASS
+Session owner check occurs before AI in PLAN: PASS
+Redis exact state transitions documented: PASS
+PostgreSQL persistence boundary documented: PASS
+Baseline factual responses are Spring-formatted: PASS
+Evaluation schema is version 2: PASS
+Phase ordering puts trusted domain before AI: PASS

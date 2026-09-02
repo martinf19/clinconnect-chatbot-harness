@@ -1,0 +1,3 @@
+code,display_name,definition_text,active
+PRIMARY_ONCALL,Primary On-Call,"The clinician primarily responsible for new consults during the coverage window.",true
+BACKUP_ONCALL,Backup On-Call,"The clinician who covers if the primary on-call is unreachable during the coverage window.",true

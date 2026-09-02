@@ -1,0 +1,175 @@
+version: 2
+suite: spring_orchestration_and_conversation
+
+fixture_contract:
+  clock: "2026-08-30T18:00:00-07:00"
+  authenticated_subject: "local-user-1"
+
+cases:
+  - id: alias_canonicalization
+    turns:
+      - message: "Who has Neuro call in Oakland?"
+        expected:
+          intent_id: get_oncall_now
+          canonical:
+            location_id: loc-oakland
+            specialty_id: spec-neurology
+          tool_id: get_oncall_now
+
+  - id: unique_location_auto_resolution
+    fixture:
+      specialty_locations:
+        spec-rheumatology:
+          - loc-antioch
+    turns:
+      - message: "Who is on call for Rheumatology?"
+        expected:
+          status: ANSWER
+          canonical:
+            location_id: loc-antioch
+            specialty_id: spec-rheumatology
+          clarification: null
+
+  - id: ambiguous_location_clarification_and_resume
+    fixture:
+      specialty_locations:
+        spec-neurology:
+          - loc-oakland
+          - loc-antioch
+    turns:
+      - message: "Who is on call for Neurology?"
+        expected:
+          status: CLARIFICATION
+          clarification:
+            reason: AMBIGUOUS_ENTITY
+            parameter: location_text
+            option_ids:
+              - loc-oakland
+              - loc-antioch
+          tool_executed: false
+      - message: "Oakland"
+        expected:
+          status: ANSWER
+          resumed_intent_id: get_oncall_now
+          canonical:
+            location_id: loc-oakland
+            specialty_id: spec-neurology
+          pending_clarification_cleared: true
+
+  - id: invalid_short_answer_does_not_guess
+    fixture:
+      specialty_locations:
+        spec-neurology:
+          - loc-oakland
+          - loc-antioch
+    turns:
+      - message: "Who is on call for Neurology?"
+        expected:
+          status: CLARIFICATION
+      - message: "orders"
+        expected:
+          status: CLARIFICATION
+          tool_executed: false
+          guessed_value: false
+
+  - id: clarification_cancel
+    turns:
+      - message: "What specialties are available?"
+        expected:
+          status: CLARIFICATION
+          clarification:
+            parameter: location_text
+      - message: "never mind"
+        expected:
+          pending_clarification_cleared: true
+          tool_executed: false
+
+  - id: unrelated_replaces_pending
+    turns:
+      - message: "What specialties are available?"
+        expected:
+          status: CLARIFICATION
+      - message: "What locations can I search?"
+        expected:
+          intent_id: get_locations
+          pending_clarification_cleared: true
+          tool_id: get_locations
+
+  - id: contact_followup_single_provider
+    turns:
+      - message: "Who is covering Neurology in Oakland?"
+        expected:
+          status: ANSWER
+          last_result_context:
+            single_provider_id: provider-avery-chen
+      - message: "How can I reach them?"
+        expected:
+          intent_id: get_contact_info
+          canonical:
+            provider_id: provider-avery-chen
+          tool_id: get_contact_info
+
+  - id: multi_provider_pronoun_requires_clarification
+    fixture:
+      last_result_context:
+        provider_ids:
+          - provider-avery-chen
+          - provider-jordan-lee
+        single_provider_id: null
+    turns:
+      - message: "How can I reach them?"
+        expected:
+          status: CLARIFICATION
+          tool_executed: false
+
+  - id: today_normalization
+    turns:
+      - message: "Who is on call for Neurology in Oakland today?"
+        expected:
+          intent_id: get_oncall_schedule
+          normalized_time:
+            start_at: "2026-08-30T00:00:00-07:00"
+            end_at: "2026-08-31T00:00:00-07:00"
+
+  - id: tonight_normalization
+    turns:
+      - message: "Who is on call for Neurology in Oakland tonight?"
+        expected:
+          intent_id: get_oncall_schedule
+          normalized_time:
+            start_at: "2026-08-30T17:00:00-07:00"
+            end_at: "2026-08-31T00:00:00-07:00"
+
+  - id: weekend_normalization_when_sunday
+    turns:
+      - message: "Who is on call for Cardiology in Oakland this weekend?"
+        expected:
+          normalized_time:
+            start_at: "2026-08-29T00:00:00-07:00"
+            end_at: "2026-08-31T00:00:00-07:00"
+
+  - id: user_correction_overrides_context
+    turns:
+      - message: "Who is covering Neurology in Oakland?"
+        expected:
+          canonical:
+            location_id: loc-oakland
+      - message: "Actually, Antioch."
+        expected:
+          canonical:
+            location_id: loc-antioch
+            specialty_id: spec-neurology
+          context_override: true
+
+  - id: no_match_clears_last_result
+    turns:
+      - message: "Who is covering Neurology in Oakland?"
+        expected:
+          last_result_context:
+            single_provider_id: provider-avery-chen
+      - message: "Who is on call for Cardiology in Antioch tonight?"
+        fixture_result: NO_MATCH
+        expected:
+          status: NO_MATCH
+          last_result_context_cleared: true
+          last_query_context_updated: true

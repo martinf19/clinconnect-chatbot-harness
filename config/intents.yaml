@@ -1,0 +1,154 @@
+version: 2
+
+machine_contract:
+  field_naming: snake_case
+  ai_returns_tool_id: false
+  ai_returns_canonical_entity_ids: false
+  ai_returns_executable_timestamps: false
+  confidence_field_used: false
+
+aliases:
+  specialty:
+    cards: cardiology
+    cardio: cardiology
+    neuro: neurology
+
+intents:
+  - id: get_locations
+    description: List active supported locations.
+    parameters: {}
+    tool_id: get_locations
+
+  - id: get_specialties
+    description: List active specialties at a location.
+    parameters:
+      location_text:
+        type: string
+        required: true
+    tool_id: get_specialties
+
+  - id: get_department_info
+    description: Retrieve narrow approved department information for a location and specialty.
+    parameters:
+      location_text:
+        type: string
+        required: true
+      specialty_text:
+        type: string
+        required: true
+    tool_id: get_department_info
+
+  - id: get_oncall_now
+    description: Retrieve coverage active at the trusted current instant.
+    parameters:
+      specialty_text:
+        type: string
+        required: true
+      location_text:
+        type: string
+        required: false
+        resolution_policy: BACKEND_UNIQUE_OR_CLARIFY
+      role_text:
+        type: string
+        required: false
+    time_policy:
+      allowed_kinds:
+        - CURRENT
+      omitted_time_defaults_to: CURRENT
+    tool_id: get_oncall_now
+
+  - id: get_oncall_schedule
+    description: Retrieve coverage for a supported bounded interval.
+    parameters:
+      specialty_text:
+        type: string
+        required: true
+      location_text:
+        type: string
+        required: false
+        resolution_policy: BACKEND_UNIQUE_OR_CLARIFY
+      role_text:
+        type: string
+        required: false
+      time_expression:
+        type: time_expression
+        required: true
+    time_policy:
+      allowed_kinds:
+        - TODAY
+        - TONIGHT
+        - TOMORROW
+        - WEEKEND
+        - SPECIFIC_DATE
+    tool_id: get_oncall_schedule
+
+  - id: get_contact_info
+    description: Retrieve approved contacts for one provider.
+    parameters:
+      provider_reference:
+        type: provider_reference
+        required: true
+        allowed_kinds:
+          - EXPLICIT_TEXT
+          - LAST_RESULT_PROVIDER
+      contact_type:
+        type: contact_type
+        required: false
+    tool_id: get_contact_info
+
+  - id: get_pcconsult_info
+    description: Retrieve approved consult-routing information.
+    parameters:
+      location_text:
+        type: string
+        required: true
+      specialty_text:
+        type: string
+        required: true
+      time_context:
+        type: time_context
+        required: false
+      declared_urgency:
+        type: declared_urgency
+        required: false
+    tool_id: get_pcconsult_info
+
+  - id: triage_consult
+    description: Legacy intent ID for routing by user-declared urgency; never clinical urgency classification.
+    parameters:
+      location_text:
+        type: string
+        required: true
+      specialty_text:
+        type: string
+        required: true
+      declared_urgency:
+        type: declared_urgency
+        required: true
+      time_context:
+        type: time_context
+        required: false
+    clinical_classification_allowed: false
+    tool_id: get_pcconsult_info
+
+  - id: chart_chat_guidance
+    description: Retrieve stored approved Chart Chat guidance.
+    parameters:
+      location_text:
+        type: string
+        required: true
+      specialty_text:
+        type: string
+        required: true
+      time_context:
+        type: time_context
+        required: false
+    tool_id: chart_chat_guidance
+
+  - id: role_explanation
+    description: Retrieve an approved on-call role definition.
+    parameters:
+      role_text:
+        type: string
+        required: true
+    tool_id: role_explanation
