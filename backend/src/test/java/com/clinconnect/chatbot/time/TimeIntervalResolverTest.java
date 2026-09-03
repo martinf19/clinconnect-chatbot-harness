@@ -65,6 +65,48 @@ class TimeIntervalResolverTest {
         assertThat(interval.endAt()).isEqualTo(Instant.parse("2026-06-22T07:00:00Z"));
     }
 
+    // --- Weekend boundary regression: Friday, Saturday, Sunday, Monday around one weekend ---
+    // (planning/PHASE-STATUS.md Phase 6 finding "weekend_normalization_when_sunday" — no
+    // existing test exercised a Sunday anchor before that). 2026-06-20/21/22 are Sat/Sun/Mon;
+    // every anchor day here refers to that same Saturday-through-Monday weekend except the
+    // Monday case, which is already past it and must roll to the *next* one.
+
+    @Test
+    void weekendFromFridayIsTheImmediatelyUpcomingSaturdayThroughMonday() {
+        // 2026-06-19 is the Friday immediately before the 2026-06-20 weekend.
+        Clock fridayClock = Clock.fixed(Instant.parse("2026-06-19T19:00:00Z"), ZoneId.of("UTC"));
+        TimeIntervalResolver resolver = new TimeIntervalResolver(fridayClock, "17:00");
+        TimeInterval interval = resolver.resolve(TimeExpressionKind.WEEKEND, null, zone);
+
+        assertThat(interval.startAt()).isEqualTo(Instant.parse("2026-06-20T07:00:00Z"));
+        assertThat(interval.endAt()).isEqualTo(Instant.parse("2026-06-22T07:00:00Z"));
+    }
+
+    @Test
+    void weekendFromSundayIsTheWeekendThatStartedYesterdayNotNextWeeks() {
+        // 2026-06-21 is a Sunday, the second day of the 2026-06-20 weekend — the bug this test
+        // guards against: the old formula landed on 2026-06-27 (the *following* Saturday)
+        // instead of recognizing "now" is already inside the weekend that started yesterday.
+        Clock sundayClock = Clock.fixed(Instant.parse("2026-06-21T19:00:00Z"), ZoneId.of("UTC"));
+        TimeIntervalResolver resolver = new TimeIntervalResolver(sundayClock, "17:00");
+        TimeInterval interval = resolver.resolve(TimeExpressionKind.WEEKEND, null, zone);
+
+        assertThat(interval.startAt()).isEqualTo(Instant.parse("2026-06-20T07:00:00Z"));
+        assertThat(interval.endAt()).isEqualTo(Instant.parse("2026-06-22T07:00:00Z"));
+    }
+
+    @Test
+    void weekendFromMondayImmediatelyAfterIsTheNextWeekendNotTheOneThatJustEnded() {
+        // 2026-06-22 is the Monday immediately after the 2026-06-20 weekend — must roll forward
+        // to 2026-06-27, not stay on the weekend that just ended.
+        Clock mondayAfterClock = Clock.fixed(Instant.parse("2026-06-22T19:00:00Z"), ZoneId.of("UTC"));
+        TimeIntervalResolver resolver = new TimeIntervalResolver(mondayAfterClock, "17:00");
+        TimeInterval interval = resolver.resolve(TimeExpressionKind.WEEKEND, null, zone);
+
+        assertThat(interval.startAt()).isEqualTo(Instant.parse("2026-06-27T07:00:00Z"));
+        assertThat(interval.endAt()).isEqualTo(Instant.parse("2026-06-29T07:00:00Z"));
+    }
+
     @Test
     void specificDateIsThatFullCalendarDay() {
         TimeIntervalResolver resolver = new TimeIntervalResolver(mondayNoon, "17:00");

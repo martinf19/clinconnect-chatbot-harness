@@ -8,6 +8,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.clinconnect.chatbot.correlation.CorrelationIdFilter;
 import com.clinconnect.chatbot.domain.model.ContactType;
 import com.clinconnect.chatbot.domain.model.CoverageAssignment;
 import com.clinconnect.chatbot.domain.model.Location;
@@ -36,6 +39,7 @@ import com.clinconnect.chatbot.session.ClarificationReason;
 import com.clinconnect.chatbot.session.ConversationSession;
 import com.clinconnect.chatbot.session.ConversationSessionStore;
 import com.clinconnect.chatbot.session.LastQueryContext;
+import com.clinconnect.chatbot.session.LastResultContext;
 import com.clinconnect.chatbot.time.TimeExpressionKind;
 import java.time.Clock;
 import java.time.Instant;
@@ -43,6 +47,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -653,5 +658,97 @@ class ChatOrchestrationServiceTest {
                 .extracting(ConversationSession::lastQueryContext)
                 .satisfies(ctx -> assertThat(ctx)
                         .contains(new LastQueryContext("get_oncall_now", "Oakland", "Pediatrics", null)));
+    }
+
+    // --- Phase 7 POC hardening ---------------------------------------------------------------
+
+    @Test
+    void crossSessionProviderContextDoesNotLeakBetweenSessions() {
+        // docs/09-SECURITY.md "Required Security Tests": cross-session provider-context
+        // isolation. Session A resolves a single-provider pronoun context; a *different*
+        // session for the same authenticated subject (e.g. a second browser tab) must never
+        // see it — each session's LastResultContext is only ever set by that session's own
+        // turns.
+        coverageAssignmentRepository.save(new CoverageAssignment(
+                "eval-isolation-oakland-neurology", "provider-avery-chen", "spec-neurology", "loc-oakland",
+                "PRIMARY_ONCALL", Instant.parse("2026-08-30T00:00:00Z"), Instant.parse("2026-08-31T00:00:00Z")));
+        whenMessage(
+                "Who is covering Neurology in Oakland?",
+                interpreted("get_oncall_now", params("Oakland", "Neurology", null)));
+        ChatMessageResponse sessionAFirstTurn = orchestrationService.handleMessage(
+                USER, request(null, "Who is covering Neurology in Oakland?"), "corr-a-1");
+        assertThat(sessionStore.find(sessionAFirstTurn.sessionId())).get()
+                .extracting(ConversationSession::lastResultContext)
+                .satisfies(r -> assertThat(r).get()
+                        .extracting(LastResultContext::singleProviderId).isEqualTo("provider-avery-chen"));
+
+        // A brand-new session (session_id: null mints a fresh one) for the *same* subject asks
+        // the pronoun question with no prior turn of its own.
+        whenMessage(
+                "How can I reach them?",
+                interpreted("get_contact_info",
+                        params(null, null, new ProviderReferenceValue(ProviderReferenceKind.LAST_RESULT_PROVIDER, null))));
+        ChatMessageResponse sessionBFirstTurn =
+                orchestrationService.handleMessage(USER, request(null, "How can I reach them?"), "corr-b-1");
+
+        assertThat(sessionBFirstTurn.sessionId()).isNotEqualTo(sessionAFirstTurn.sessionId());
+        assertThat(sessionBFirstTurn.status()).isEqualTo(ChatResponseStatus.CLARIFICATION);
+        assertThat(sessionBFirstTurn.clarification().parameter()).isEqualTo(ClarificationParameterName.PROVIDER_REFERENCE);
+    }
+
+    @Test
+    void chatRequestOutcomeIsLoggedWithCorrelationIdSessionIdStatusAndLatency() {
+        ch.qos.logback.classic.Logger logbackLogger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ChatOrchestrationService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logbackLogger.addAppender(appender);
+        try {
+            whenMessage("What locations can I search?", interpreted("get_locations", InterpretationParameters.empty()));
+
+            ChatMessageResponse response = orchestrationService.handleMessage(
+                    USER, request(null, "What locations can I search?"), "corr-log-1");
+
+            assertThat(appender.list).anySatisfy(event -> {
+                String message = event.getFormattedMessage();
+                assertThat(message).contains("chat_request");
+                assertThat(message).contains("correlation_id=corr-log-1");
+                assertThat(message).contains("session_id=" + response.sessionId());
+                assertThat(message).contains("subject=" + USER.subjectId());
+                assertThat(message).contains("status=ANSWER");
+                assertThat(message).contains("latency_ms=");
+            });
+        } finally {
+            logbackLogger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void intentDispatchIsLoggedWithIntentIdAndToolId() {
+        ch.qos.logback.classic.Logger logbackLogger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(IntentOrchestrationService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logbackLogger.addAppender(appender);
+        // In production CorrelationIdFilter puts this in MDC before ChatController runs; this
+        // test calls the orchestration service directly (no servlet filter chain), so it sets
+        // MDC itself to reproduce that same precondition.
+        MDC.put(CorrelationIdFilter.MDC_KEY, "corr-log-2");
+        try {
+            whenMessage("What locations can I search?", interpreted("get_locations", InterpretationParameters.empty()));
+
+            orchestrationService.handleMessage(USER, request(null, "What locations can I search?"), "corr-log-2");
+
+            assertThat(appender.list).anySatisfy(event -> {
+                String message = event.getFormattedMessage();
+                assertThat(message).contains("intent_dispatch");
+                assertThat(message).contains("correlation_id=corr-log-2");
+                assertThat(message).contains("intent_id=get_locations");
+                assertThat(message).contains("tool_id=get_locations");
+            });
+        } finally {
+            MDC.remove(CorrelationIdFilter.MDC_KEY);
+            logbackLogger.detachAppender(appender);
+        }
     }
 }

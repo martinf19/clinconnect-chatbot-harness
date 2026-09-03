@@ -67,9 +67,22 @@ public class TimeIntervalResolver {
                 date.plusDays(1).atStartOfDay(zone).toInstant());
     }
 
+    /**
+     * WEEKEND is still Saturday 00:00 to Monday 00:00 in the location zone (unchanged POC
+     * definition) — this only fixes which Saturday anchors that window. The forward-count
+     * formula below correctly lands on today when today is already Saturday, and on the
+     * upcoming Saturday for any weekday Monday-Friday, but a Sunday is the one day it can't
+     * express going "backward" one day to (it would instead skip forward a full 6 days to
+     * next Saturday). Sunday is the last day of the weekend that started the day before, not
+     * the first day of a week-away one, so it is special-cased to look back one day instead
+     * (found via docs/10-EVALUATION-PLAN.md Phase 6 evaluation; planning/PHASE-STATUS.md Phase
+     * 6 "weekend_normalization_when_sunday" — no existing unit test exercised a Sunday anchor
+     * before that).
+     */
     private TimeInterval weekend(LocalDate today, ZoneId zone) {
-        int daysUntilSaturday = (DayOfWeek.SATURDAY.getValue() - today.getDayOfWeek().getValue() + 7) % 7;
-        LocalDate saturday = today.plusDays(daysUntilSaturday);
+        LocalDate saturday = today.getDayOfWeek() == DayOfWeek.SUNDAY
+                ? today.minusDays(1)
+                : today.plusDays((DayOfWeek.SATURDAY.getValue() - today.getDayOfWeek().getValue() + 7) % 7);
         return new TimeInterval(
                 saturday.atStartOfDay(zone).toInstant(),
                 saturday.plusDays(2).atStartOfDay(zone).toInstant());

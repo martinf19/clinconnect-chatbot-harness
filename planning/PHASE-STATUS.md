@@ -2,11 +2,14 @@
 
 ## Current Phase
 
-Phase 6 — Evaluation and Regression
+Phase 7 — POC Hardening and Production Adapter Readiness (Local POC scope only)
 
 ## Status
 
-COMPLETE (1 known deterministic-logic failure, not fixed this phase — see below)
+COMPLETE — Local POC hardening scope only (production deployment/security infrastructure
+explicitly deferred; see the Phase 7 report below). Phase 6's one known deterministic-logic
+failure (`weekend_normalization_when_sunday`) was fixed in the post-Phase-6 remediation; all
+evaluation/regression tests pass, plus 9 new Phase 7 tests.
 
 ## Phase 3 Objective
 
@@ -1010,3 +1013,304 @@ Sunday will silently return the wrong week's data. Everything else — 133/134 d
 backend tests, 57/57 ai-service tests, clean frontend build/lint, 94% live-model accuracy on
 both Layer A and (indirectly) Layer B/C's message interpretation — is clean and regression-safe
 against the CSV-seeded synthetic dataset.
+
+---
+
+# Post-Phase-6 Remediation — `TimeIntervalResolver.weekend()` Sunday Fix
+
+Requested directly by the user, scoped narrowly to exactly the defect Phase 6 identified.
+**Phase 7 has not been started.**
+
+## What Changed
+
+- **`backend/.../time/TimeIntervalResolver.java`** — `weekend()`: when today is a Sunday, the
+  anchor Saturday is now `today.minusDays(1)` instead of running through the general
+  forward-count formula. The forward-count formula (`(SATURDAY - today.getDayOfWeek() + 7) %
+  7`) already correctly handles every other day (0 for Saturday itself, 1–5 for Mon–Fri) — it
+  just cannot express "go back one day," so it fell through to "go forward six days" for
+  Sunday, landing on the following weekend instead of the one already in progress. This is the
+  entire fix: one `if`, no change to `TODAY`/`TONIGHT`, no change to the WEEKEND window's own
+  shape (still Saturday 00:00 to Monday 00:00 in the location zone), no change to any other
+  method.
+- **`backend/.../time/TimeIntervalResolverTest.java`** — added four new boundary tests anchored
+  on the same real weekend (Saturday 2026-06-20 through Monday 2026-06-22): Friday (day
+  before), Sunday (the bug's exact repro case), and Monday-immediately-after (must roll to the
+  *next* weekend, 2026-06-27–29, not stay on the one that just ended). The pre-existing Saturday
+  test (`weekendFromWithinTheWeekendIsTheCurrentSaturdayThroughMonday`) already anchors on the
+  same weekend and was left as-is; the pre-existing far-Monday test
+  (`weekendFromAWeekdayIsTheUpcomingSaturdayThroughMonday`, a different week) was also left
+  unchanged. Together these four days (Fri/Sat/Sun/Mon) around one boundary, plus the existing
+  far-Monday case, give explicit regression coverage for every point where the anchor
+  computation could plausibly go wrong.
+
+No other file changed. No TODAY/TONIGHT semantics touched. No test was weakened, removed, or
+had its expected values altered — `conversation-evaluation.yaml`'s
+`weekend_normalization_when_sunday` case is unchanged; it now passes because the application
+code was corrected to match it, not because the evaluation was adjusted to match the old
+behavior.
+
+## Fix Verification
+
+- **Root-cause confirmed by manual trace before fixing**: for Sunday (`DayOfWeek.SUNDAY.
+  getValue() = 7`), the old formula computed `(6 - 7 + 7) % 7 = 6`, i.e. "6 days forward" —
+  landing on the *next* Saturday. Reproduced exactly by the pre-fix
+  `weekend_normalization_when_sunday` failure (expected `2026-08-29T07:00:00Z`, got
+  `2026-09-05T07:00:00Z` — precisely 7 days later).
+- **New unit tests all pass** with the fix in place, each asserting the exact expected
+  `Instant` boundaries (not just "no exception"):
+  - Friday → same upcoming weekend (2026-06-20–22).
+  - Saturday → stays on that Saturday (pre-existing test, still passes — confirms the fix
+    didn't disturb the already-correct case).
+  - Sunday → the weekend that started yesterday (2026-06-20–22), **not** 2026-06-27 — the exact
+    fix.
+  - Monday (immediately after) → rolls forward to the *next* weekend (2026-06-27–29), proving
+    the fix didn't overcorrect into treating Monday as still "inside" the prior weekend.
+  - Monday (mid-week, pre-existing far case) → still resolves to that week's upcoming Saturday,
+    confirming ordinary weekday behavior is untouched.
+
+## Tests Run and Results
+
+- `backend/mvnw clean test -Dtest=TimeIntervalResolverTest,ConversationEvaluationTest`: **24/24
+  passing** (11 `TimeIntervalResolverTest` — 8 pre-existing + 4 new — and 13/13
+  `ConversationEvaluationTest`, including `weekend_normalization_when_sunday` now passing).
+- `backend/mvnw clean test` (full suite, offline, `-Dmaven.compiler.release=17`): **137/137
+  passing, 0 failures, 4 skipped** (the same 4 documented `Assumptions.abort` cases from Phase
+  6 — `unauthorized_resource` and the three ai-service-owned `injected_ai_result` cases,
+  unaffected by this change). Up from Phase 6's 133/134 — the one failure is now fixed, and no
+  new failures were introduced.
+- `ai-service`/frontend: not touched by this change; not re-run (no code in either area was
+  modified).
+
+## Assumptions / Deviations
+
+None beyond what's stated above — this was a single-defect fix with no design decisions left
+open. The still-unconfirmed *business* question (docs/02-REQUIREMENTS.md "Remaining Business
+Question #8": whether production weekend boundaries should differ from this prototype
+convention at all) remains explicitly out of scope and unresolved, exactly as before — this fix
+only makes the existing, documented POC convention (Saturday–Monday) internally consistent
+across every day of the week, it does not decide what that convention *should* be.
+
+## Unresolved Issues / Limitations
+
+Unchanged from Phase 6's list except item 1 (the weekend bug), now resolved:
+
+1. ~~`weekend_normalization_when_sunday` discrepancy~~ — **fixed** (this remediation).
+2. `unauthorized_resource` (per-location entitlement) remains unimplemented — accepted POC
+   limitation, unchanged since Phase 1.
+3. `TIME_EXPRESSION` clarification resume is not implemented (Phase 3 deviation #5).
+4. No `uv.lock` for `ai-service/`; JDK 21 verification still outstanding for the backend.
+5. Time-interval-boundary business confirmation (Phase 1 deviation #2 / docs/02 Remaining
+   Business Question #8) remains open — the *convention* is now internally consistent; whether
+   it's the *right* convention for production is still an open business question.
+
+## Is Phase 7 Ready to Begin?
+
+**Yes — PHASE 7 READY.** The one blocking-ish recommendation from the Phase 6 report is
+resolved: 137/137 backend tests pass (0 failures), including all deterministic evaluation
+coverage from Phase 6 plus the new weekend-boundary regression tests. No scope beyond the
+documented defect was touched.
+
+---
+
+# Phase 7 Report — POC Hardening and Production Adapter Readiness (Local POC Scope)
+
+## Phase 7 Objective
+
+Per `planning/PLAN.md`: "Verify H2 -> PostgreSQL/source-adapter and in-memory -> Redis
+replacement seams. Do not implement PostgreSQL/Redis unless explicitly requested." The fuller
+scope (`planning/BACKLOG.md` "P1 — POC Hardening," `docs/03-ARCHITECTURE.md`/`docs/09-
+SECURITY.md` "Production Concerns") was classified before implementation into Implement-Now
+(local POC hardening/validation) vs. Defer (production deployment/security infrastructure) in
+a prior turn, confirmed by the user, and this phase implements **only** the approved
+Implement-Now items. Nothing in category B (production infrastructure) was built. NFR-011
+("retain effective timestamps") was explicitly deferred per the user's decision. No prior
+phase was redesigned; H2, Spring in-memory conversation state, local Ollama, and the local
+React/Spring/FastAPI runtime remain exactly as documented.
+
+## Items Implemented (Implement Now)
+
+1. **Verified + codified the H2 → PostgreSQL/source-adapter seam.** Audited every `@Query` in
+   `backend/.../domain/repository/` (4 total, in `ConsultRoutingRuleRepository`,
+   `CoverageAssignmentRepository` ×2, `LocationSpecialtyRepository`) — all portable JPQL, zero
+   `nativeQuery = true`, zero H2-specific SQL anywhere in `backend/src/main`. Codified as a
+   regression test (`ReplacementSeamTest.noRepositoryQueryUsesNativeSql`) rather than left as a
+   one-time note, so a future native-SQL addition fails the build immediately.
+2. **Verified + codified the in-memory → Redis conversation-state seam.** Confirmed
+   `InMemoryConversationSessionStore`/`ConcurrentHashMap` are referenced only inside
+   `backend/.../session/` — every other class (`ChatOrchestrationService`,
+   `IntentOrchestrationService`, etc.) depends solely on the `ConversationSessionStore`
+   interface. Codified as `ReplacementSeamTest
+   .noClassOutsideSessionPackageReferencesTheConcreteInMemoryStore`.
+3. **Single bounded retry on a transport-level AI-service/Ollama failure**, both sides:
+   - Spring (`PythonInterpretationClient`): one retry, after a configurable delay
+     (`AI_SERVICE_RETRY_DELAY_MILLIS`, default 300ms), on a genuine transport failure —
+     detected as an `IOException` anywhere in the exception's cause chain, not just
+     `ResourceAccessException` (see the real bug this caught, below). A well-formed non-2xx
+     response from ai-service (it already fail-closed internally) is never retried.
+   - ai-service (`ollama_client.generate_json`): the same policy against Ollama —
+     `httpx.RequestError` (connection refused/reset, timeout) retried once after
+     `OLLAMA_RETRY_DELAY_SECONDS` (default 0.3s); `httpx.HTTPStatusError` (Ollama responded,
+     just with an error) is never retried.
+   - Both still fail closed exactly as before once the retry is exhausted: Spring returns
+     `ChatResponseStatus.ERROR`/`InterpretationUnavailableException`, no tool ever executes.
+4. **Lightweight manual performance benchmark** — see Performance Baseline below.
+5. **Cross-session provider-context isolation test** — `docs/09-SECURITY.md` "Required Security
+   Tests" names this explicitly; no test exercised it before this phase.
+6. **Structured per-request operational logging** matching `docs/09-SECURITY.md` "Logging"'s
+   baseline field list (timestamp/service via the logger itself; correlation ID, session ID,
+   subject, intent ID, tool ID, result status, latency, safe error category all explicit) —
+   one `chat_request` line per request in `ChatOrchestrationService`, one `intent_dispatch`
+   line per actually-dispatched intent in `IntentOrchestrationService`, joined by the shared
+   correlation ID. Error category is the exception's class simple name only — never its
+   message, which could echo user input.
+
+## A Real Bug Found and Fixed While Building Item 3
+
+`PythonInterpretationClientTest` deliberately uses a real local TCP peer
+(`FlakyHttpServer`, plain `ServerSocket` — no mocking library) rather than mocking
+`RestClient`, specifically so the actual exception classification Spring produces would be
+exercised for real. It found that a connection reset **while reading the response body**
+surfaces as a plain `RestClientException` wrapping a `SocketException`, not always
+`ResourceAccessException` — my first implementation only caught `ResourceAccessException` and
+so failed to retry that case at all. Fixed by broadening the retry condition to "an
+`IOException` anywhere in the cause chain," and confirmed the well-formed-error-response case
+(a real 503 with a body) still correctly gets zero retries. Recorded here because it's exactly
+the kind of gap a mock-based test would never have revealed — the whole reason this phase used
+a real socket server instead.
+
+## Performance Baseline
+
+Lightweight manual benchmark against the live local stack (real Spring backend, real
+ai-service, real Ollama running `qwen2.5:7b-instruct`), 3 runs per case via `curl -w
+'%{time_total}'`, no request other than the first hitting a cold model-load:
+
+| Request | Run 1 | Run 2 | Run 3 | Notes |
+|---|---|---|---|---|
+| `"What locations can I search?"` (ANSWER, no entity resolution) | 9.27s | 0.81s | 0.77s | Run 1 is Ollama's cold model-load; steady-state ~0.8s |
+| `"who is on call for neurology in oakland"` (ANSWER, on-call lookup) | 1.88s | 1.92s | 1.83s | Consistent ~1.8–1.9s |
+| `"Who is on call for Cardiology?"` (CLARIFICATION, ambiguous location) | 1.56s | 1.48s | 1.47s | Consistent ~1.5s |
+
+No performance NFR/SLA is documented anywhere in `docs/`, so these numbers are recorded for
+future reference only, not graded against a threshold. The bulk of latency is Ollama inference
+time (expected for a 7B local model on this hardware); Spring/H2's own contribution is small by
+comparison (the no-entity-resolution case, which still calls Ollama, is ~0.8s vs. ~1.5–1.9s for
+cases requiring entity extraction — the delta is mostly extra/longer model output, not Spring
+overhead).
+
+## Files Changed
+
+- `backend/.../interpretation/PythonInterpretationClient.java` — bounded transport retry.
+- `backend/.../interpretation/FlakyHttpServer.java` (new, test-only) — real local TCP peer for
+  retry testing.
+- `backend/.../interpretation/PythonInterpretationClientTest.java` (new) — 4 tests.
+- `backend/.../chat/ChatOrchestrationService.java` — structured `chat_request` logging.
+- `backend/.../chat/IntentOrchestrationService.java` — structured `intent_dispatch` logging.
+- `backend/.../chat/ChatOrchestrationServiceTest.java` — 3 new tests (cross-session isolation,
+  2 logging tests).
+- `backend/.../architecture/ReplacementSeamTest.java` (new) — 2 tests codifying both
+  replacement seams.
+- `backend/src/main/resources/application.yml` — new `clinconnect.ai-service.retry-delay-millis`.
+- `ai-service/src/ai_service/ollama_client.py` — bounded transport retry.
+- `ai-service/src/ai_service/config.py` — new `ollama_retry_delay_seconds` setting.
+- `ai-service/tests/test_ollama_client.py` — retry tests added/strengthened.
+- `.env`, `.env.example` — `AI_SERVICE_RETRY_DELAY_MILLIS`, `OLLAMA_RETRY_DELAY_SECONDS`.
+- `planning/PHASE-STATUS.md` — this report.
+
+No `config/intents.yaml`/`config/tools.yaml`/prompt file changed. No frontend file changed. No
+API/contract shape changed — `ChatMessageRequest`/`ChatMessageResponse` and every enum are
+byte-for-byte unchanged.
+
+## Tests / Evaluations Performed and Results
+
+- `backend/mvnw clean test` (offline, `-Dmaven.compiler.release=17`, same carried-over JDK 21
+  caveat as every prior phase): **146/146 passing, 0 failures, 4 skipped** (same 4 documented
+  `Assumptions.abort` cases from Phase 6, unaffected) — up from Phase 6 remediation's 137: +4
+  `PythonInterpretationClientTest`, +2 `ReplacementSeamTest`, +3 new `ChatOrchestrationServiceTest`
+  methods.
+- `ai-service pytest`: **58/58 passing** (was 57 — net +1: two existing transport-failure tests
+  were strengthened in place with a request-count assertion rather than duplicated, plus one
+  new "retries then succeeds" test).
+- `npm run lint` / `npm run build`: clean (frontend untouched this phase).
+- Live-stack performance benchmark: see above (informational, not a pass/fail gate — no
+  documented performance NFR exists).
+- Manual live verification: full stack (Ollama, ai-service, Spring) restarted clean on the
+  changed code; `/actuator/health` 200; confirmed structured `chat_request`/`intent_dispatch`
+  log lines actually appear in the running application's log output (not just in tests).
+
+## Deferred Production Items (Category B — Not Implemented)
+
+Unchanged from the approved classification; nothing below was touched, and nothing was removed
+from `docs/03-ARCHITECTURE.md`'s "Future Production Target"/"Production Concerns" sections:
+
+- PostgreSQL/source-adapter and Redis **implementation** (seam *verification* only was in
+  scope, per items 1–2 above)
+- Kubernetes/OpenShift deployment, production network configuration, load balancing/scaling,
+  HA/DR
+- Enterprise SSO/OIDC/SAML/RBAC integration (dev-auth stub remains the approved POC identity)
+- mTLS / service-to-service authentication
+- Enterprise secrets manager (`.env` remains approved for POC)
+- Production monitoring infrastructure (APM/dashboards/alerting — beyond the local structured
+  logging added this phase)
+- CI/CD deployment pipelines
+- Production network configuration
+- Source freshness/staleness integration with real upstream source systems (**NFR-011**,
+  explicitly deferred per the user's decision)
+- Audit/retention infrastructure, encryption at rest, vulnerability/container scanning
+- Model/prompt governance program (beyond the existing `docs/10` rerun-on-change process)
+
+## Assumptions / Deviations
+
+1. **Retry scope is deliberately narrow**: "transport-level failure" means an I/O error in the
+   cause chain (connect refused/reset, timeout, truncated response) — never a well-formed
+   error response the peer already returned. This matches the user's approved "single bounded
+   retry" choice (not the more elaborate "configurable max-attempts + backoff" option), so
+   `MAX_ATTEMPTS`/`_MAX_ATTEMPTS` are hardcoded constants (2), not separately configurable —
+   only the delay is.
+2. **Logging fields split across two log lines** (`chat_request` in `ChatOrchestrationService`,
+   `intent_dispatch` in `IntentOrchestrationService`, correlated by `correlation_id`) rather
+   than one — `ChatMessageResponse` intentionally never carries `intent_id`/`tool_id` (Phase 3
+   deviation #1, preserving the API contract), and those two fields are also only meaningful
+   once an intent actually dispatches (not for UNSUPPORTED, cancel, or a mid-clarification
+   turn), so a single unconditional log line couldn't cleanly carry both without guessing at
+   defaults for cases where they don't apply.
+3. **`ReplacementSeamTest` is a source-text scan, not a bytecode/reflection-based architecture
+   test** (e.g., ArchUnit) — no new dependency was added for this, consistent with this
+   project's established "no new library unless a phase explicitly requires it" pattern; a
+   plain `Files.walk` + string-content check is sufficient for the two properties being
+   guarded and keeps the test dependency-free.
+4. **Performance baseline has no dependency/tooling addition** — 3 `curl -w '%{time_total}'`
+   runs per representative case, recorded by hand in this file, per the user's approved
+   "lightweight manual benchmark" choice over a scripted repeatable one.
+5. Carried forward unchanged from Phase 6/earlier: `unauthorized_resource` (Phase 1 deviation
+   #4), `TIME_EXPRESSION` clarification resume (Phase 3 deviation #5), context reuse remaining
+   intent-agnostic (Phase 4 deviation #1), all Phase 5 UI-layer deviations, NFR-011 now
+   explicitly deferred (this phase).
+
+## Is the Local POC Complete and Ready for Final User Testing?
+
+**Yes.** Every phase through 7 (local scope) is implemented and passing: React UI ↔ Spring
+chat API ↔ Python interpretation ↔ Ollama, H2-backed domain data (CSV-seeded,
+hand-editable), Spring in-memory session/clarification/idempotency state, deterministic
+evaluation coverage (Layers A–D), and now bounded resilience + structured observability + a
+codified confirmation that the H2/Redis replacement seams remain clean for a future production
+migration. 146/146 backend tests, 58/58 ai-service tests, clean frontend build/lint, and a
+recorded live-stack latency baseline. The full stack runs locally with no PostgreSQL, Redis, or
+containers, exactly as required throughout.
+
+## Remaining POC Defects / Assumptions (Carried Forward, None New)
+
+1. `unauthorized_resource` (per-location entitlement) remains unimplemented — accepted POC
+   limitation, unchanged since Phase 1.
+2. `TIME_EXPRESSION` clarification resume is not implemented (Phase 3 deviation #5) — re-asks
+   safely rather than guessing.
+3. Context backfill for follow-up queries remains intent-agnostic, bounded only by resolved
+   fields + session TTL (Phase 4 deviation #1) — a documented, deliberate POC simplification.
+4. The Phase 2 `contact_pager` extraction accuracy gap persists in the live model (Phase 6:
+   17/18, 94% on Layer A) — functionally harmless since `contact_type` is optional and Spring's
+   fallback (full contact list) is tested and correct.
+5. No `uv.lock` for `ai-service/`; JDK 21 verification still outstanding for the backend
+   (`-Dmaven.compiler.release=17` used throughout, carried since Phase 0).
+6. NFR-011 ("retain effective timestamps") is explicitly deferred, not implemented — a decision
+   made this phase, not a defect.
+7. This session's sandbox has a `grep`/`find` shell-function wrapper quirk (resolved by
+   prefixing `command`) — an environment artifact, not a codebase issue.

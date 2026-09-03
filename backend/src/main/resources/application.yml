@@ -52,6 +52,10 @@ clinconnect:
   ai-service:
     base-url: ${AI_SERVICE_BASE_URL:http://localhost:8000}
     timeout-seconds: ${AI_SERVICE_TIMEOUT_SECONDS:20}
+    # Phase 7 POC hardening: a single bounded retry, after this delay, on a transport-level
+    # ai-service failure (connection refused/reset, timeout) only — not on a well-formed
+    # error response ai-service itself returns. See PythonInterpretationClient Javadoc.
+    retry-delay-millis: ${AI_SERVICE_RETRY_DELAY_MILLIS:300}
   session:
     ttl-seconds: ${SESSION_TTL_SECONDS:1800}
     max-processed-messages: ${MAX_PROCESSED_MESSAGES_PER_SESSION:20}

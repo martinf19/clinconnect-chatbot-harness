@@ -112,20 +112,46 @@ public class ChatOrchestrationService {
             throw new DuplicateMessageConflictException();
         }
 
+        long startNanos = System.nanoTime();
         ChatMessageResponse response;
         try {
             response = process(subject, session, request.message(), correlationId);
         } catch (InterpretationUnavailableException | AuthorizationDeniedException | UnknownIntentException e) {
             log.warn("Chat message processing failed closed: {}", e.getMessage());
             session.recordSystemError(clock.instant());
+            response = ChatMessageResponse.error(session.sessionId(), correlationId);
+            logRequestOutcome(correlationId, session, subject, response, startNanos, e.getClass().getSimpleName());
             // Deliberately not cached: this was not a successful execution, so the same
             // client_message_id may legitimately be retried (docs/09 Idempotency Security
             // exists to prevent duplicate *execution*, not to block retrying a failure).
-            return ChatMessageResponse.error(session.sessionId(), correlationId);
+            return response;
         }
 
         session.cacheResponse(request.clientMessageId(), request.message(), correlationId, response);
+        logRequestOutcome(correlationId, session, subject, response, startNanos, null);
         return response;
+    }
+
+    /**
+     * docs/09-SECURITY.md "Logging" baseline fields (Phase 7 POC hardening): timestamp/service
+     * come from the logger itself; correlation ID, session ID, subject, result status, latency,
+     * and a safe error category (just the failure's exception class name — never a message,
+     * which could echo user input) are explicit here. intent_id/tool_id are logged separately
+     * by IntentOrchestrationService (tagged with the same correlation ID via MDC) since they
+     * are only known — and only meaningful — once an intent actually dispatches.
+     */
+    private void logRequestOutcome(
+            String correlationId,
+            ConversationSession session,
+            AuthenticatedSubject subject,
+            ChatMessageResponse response,
+            long startNanos,
+            String errorCategory) {
+        long latencyMillis = (System.nanoTime() - startNanos) / 1_000_000;
+        log.info(
+                "chat_request correlation_id={} session_id={} subject={} status={} latency_ms={} error_category={}",
+                correlationId, session.sessionId(), subject.subjectId(), response.status(), latencyMillis,
+                errorCategory);
     }
 
     private ConversationSession resolveSession(AuthenticatedSubject subject, String requestedSessionId) {

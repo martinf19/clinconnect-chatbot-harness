@@ -10,10 +10,13 @@ the returned JSON with Pydantic regardless (CLAUDE.md Trust Rules).
 from __future__ import annotations
 
 import json
+import time
 
 import httpx
 
 from ai_service.config import settings
+
+_MAX_ATTEMPTS = 2
 
 
 class OllamaUnavailableError(RuntimeError):
@@ -24,21 +27,40 @@ class OllamaMalformedResponseError(RuntimeError):
     """Raised when Ollama's response body is not valid JSON."""
 
 
+def _post_with_retry(*, prompt: str, json_schema: dict) -> httpx.Response:
+    """Phase 7 POC hardening: a single bounded retry, after a short delay, on a
+    transport-level failure only (httpx.RequestError — connection refused/reset,
+    timeout). A well-formed non-2xx response (httpx.HTTPStatusError, raised by
+    raise_for_status()) is not retried: Ollama already responded, so retrying
+    would just repeat the same structural failure.
+    """
+    last_error: httpx.RequestError | None = None
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        try:
+            response = httpx.post(
+                f"{settings.ollama_base_url}/api/generate",
+                json={
+                    "model": settings.ollama_model,
+                    "prompt": prompt,
+                    "format": json_schema,
+                    "stream": False,
+                },
+                timeout=settings.ollama_timeout_seconds,
+            )
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as exc:
+            raise OllamaUnavailableError(f"Ollama request failed: {exc}") from exc
+        except httpx.RequestError as exc:
+            last_error = exc
+            if attempt < _MAX_ATTEMPTS:
+                time.sleep(settings.ollama_retry_delay_seconds)
+
+    raise OllamaUnavailableError(f"Ollama request failed after retry: {last_error}") from last_error
+
+
 def generate_json(*, prompt: str, json_schema: dict) -> dict:
-    try:
-        response = httpx.post(
-            f"{settings.ollama_base_url}/api/generate",
-            json={
-                "model": settings.ollama_model,
-                "prompt": prompt,
-                "format": json_schema,
-                "stream": False,
-            },
-            timeout=settings.ollama_timeout_seconds,
-        )
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise OllamaUnavailableError(f"Ollama request failed: {exc}") from exc
+    response = _post_with_retry(prompt=prompt, json_schema=json_schema)
 
     try:
         envelope = response.json()

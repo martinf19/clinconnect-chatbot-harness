@@ -4,6 +4,7 @@ import com.clinconnect.chatbot.canonicalization.CanonicalizationResult;
 import com.clinconnect.chatbot.canonicalization.CanonicalizationService;
 import com.clinconnect.chatbot.canonicalization.CanonicalizationStatus;
 import com.clinconnect.chatbot.config.ChatbotConfigLoader;
+import com.clinconnect.chatbot.correlation.CorrelationIdFilter;
 import com.clinconnect.chatbot.domain.model.ConsultRoutingRule;
 import com.clinconnect.chatbot.domain.model.ContactMethod;
 import com.clinconnect.chatbot.domain.model.ContactType;
@@ -43,6 +44,9 @@ import java.time.ZoneId;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 /**
@@ -76,6 +80,8 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class IntentOrchestrationService {
+
+    private static final Logger log = LoggerFactory.getLogger(IntentOrchestrationService.class);
 
     private final CanonicalizationService canonicalizationService;
     private final ChatbotConfigLoader chatbotConfigLoader;
@@ -136,9 +142,18 @@ public class IntentOrchestrationService {
             String intentId, InterpretationParameters params, AuthenticatedSubject subject, SessionResolutionContext ctx) {
         // NFR-006 / docs/09 "Tool Security": deterministic, config-validated dispatch — fail
         // closed on any intent_id without a config/intents.yaml mapping.
-        if (chatbotConfigLoader.config().intentsById().get(intentId) == null) {
+        var intentDefinition = chatbotConfigLoader.config().intentsById().get(intentId);
+        if (intentDefinition == null) {
             throw new UnknownIntentException(intentId);
         }
+        // Phase 7 POC hardening / docs/09-SECURITY.md "Logging": intent_id and the tool_id
+        // deterministically chosen for it. Tagged with the request's correlation ID (already in
+        // MDC for this thread via CorrelationIdFilter, docs/09 "Correlation IDs") so it can be
+        // joined with ChatOrchestrationService's own per-request log line without threading a
+        // new parameter through every call site.
+        log.info(
+                "intent_dispatch correlation_id={} intent_id={} tool_id={}",
+                MDC.get(CorrelationIdFilter.MDC_KEY), intentId, intentDefinition.toolId());
         SessionResolutionContext effectiveCtx = ctx == null ? SessionResolutionContext.none() : ctx;
         return switch (intentId) {
             case "get_locations" -> handleGetLocations(subject);
