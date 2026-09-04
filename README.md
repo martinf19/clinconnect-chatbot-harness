@@ -6,6 +6,40 @@ This is the implementation harness for the ClinConnect enterprise chatbot proof 
 
 ---
 
+## Table of Contents
+
+| Section |
+|---|
+| [1. Project Overview](#1-project-overview) |
+| [2. Current POC Architecture](#2-current-poc-architecture) |
+| [3. Repository Structure](#3-repository-structure) |
+| [4. Technology Stack](#4-technology-stack) |
+| [5. Prerequisites](#5-prerequisites) |
+| [6. Clone and First-Time Setup](#6-clone-and-first-time-setup) |
+| [7. Ollama and LLM Setup](#7-ollama-and-llm-setup) |
+| [8. Starting the Complete Application](#8-starting-the-complete-application) |
+| [9. Stopping and Restarting](#9-stopping-and-restarting) |
+| [10. H2 Database](#10-h2-database) |
+| [11. CSV Seed Data](#11-csv-seed-data) |
+| [12. Supported Intents and Tools](#12-supported-intents-and-tools) |
+| [13. Testing the Chatbot Manually](#13-testing-the-chatbot-manually) |
+| [14. Conversation/Session Behavior](#14-conversationsession-behavior) |
+| [15. API Reference](#15-api-reference) |
+| [16. Request Lifecycle](#16-request-lifecycle) |
+| [17. Python/FastAPI Guide for a Spring Developer](#17-pythonfastapi-guide-for-a-spring-developer) |
+| [18. Detailed LLM Request Flow](#18-detailed-llm-request-flow) |
+| [19. How to Add a New Intent/Tool](#19-how-to-add-a-new-intenttool) |
+| [20. Testing and Evaluation](#20-testing-and-evaluation) |
+| [21. Troubleshooting](#21-troubleshooting) |
+| [22. Logs and Debugging](#22-logs-and-debugging) |
+| [23. Configuration Reference](#23-configuration-reference) |
+| [24. Known POC Assumptions and Limitations](#24-known-poc-assumptions-and-limitations) |
+| [25. Production Evolution](#25-production-evolution) |
+| [26. Git/Development Workflow](#26-gitdevelopment-workflow) |
+| [27. Quick Reference / Cheat Sheet](#27-quick-reference-cheat-sheet) |
+
+---
+
 ## 1. Project Overview
 
 ### The business problem
