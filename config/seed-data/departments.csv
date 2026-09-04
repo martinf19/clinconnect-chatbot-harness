@@ -1,2 +1,3 @@
 id,display_name,location_id,specialty_id,note,active
 dept-oakland-neurology,Oakland Neurology,loc-oakland,spec-neurology,"Approved for new and established patient consult scheduling.",true
+dept-fremont-surgeon,Fremont Surgeon,loc-fremont,spec-surgeon,"Approved for new and established patient consult scheduling.",true

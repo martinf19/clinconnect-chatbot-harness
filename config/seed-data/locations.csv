@@ -1,3 +1,4 @@
 id,slug,display_name,time_zone,active
 loc-oakland,oakland,Oakland,America/Los_Angeles,true
 loc-antioch,antioch,Antioch,America/Los_Angeles,true
+loc-fremont,fremont,Fremont,America/Los_Angeles,true

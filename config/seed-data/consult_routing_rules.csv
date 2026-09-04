@@ -8,3 +8,5 @@ rule-oakland-neurology-after-hours,loc-oakland,spec-neurology,CONSULT_ROUTING,AF
 rule-oakland-neurology-urgent,loc-oakland,spec-neurology,CONSULT_ROUTING,,URGENT,"Urgent Neurology consults should be routed directly to the on-call Neurology provider via page, regardless of time of day.",true
 rule-antioch-rheumatology-daytime,loc-antioch,spec-rheumatology,CONSULT_ROUTING,DAYTIME,,"Route daytime Rheumatology consults through the Antioch Rheumatology department line.",true
 guidance-oakland-neurology,loc-oakland,spec-neurology,CHART_CHAT_GUIDANCE,,,"Use Chart Chat for non-urgent secure messages to Oakland Neurology; urgent requests must be phoned in.",true
+rule-fremont-surgeon-daytime,loc-fremont,spec-surgeon,CONSULT_ROUTING,DAYTIME,,"Route daytime Neurology consults through the Oakland Neurology department line.",true
+guidance-fremont-surgeon,loc-fremont,spec-surgeon,CHART_CHAT_GUIDANCE,,,"Use Chart Chat for non-urgent secure messages to Fremont Surgeon; urgent requests must be phoned in.",true

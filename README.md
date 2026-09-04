@@ -625,6 +625,44 @@ aliases:
 ```
 This only affects the backend (the Python AI service's intent-config loader deliberately never reads the `aliases` key — it only extracts intent IDs/parameters from `config/intents.yaml`), so only a **backend** restart is needed for an alias change.
 
+### Batch-adding new records with `scripts/seed_add.py`
+
+Hand-editing every cross-referenced CSV above for one new provider (`providers.csv`, `provider_specialties.csv`, `contact_methods.csv`, `location_specialties.csv`, `departments.csv`, `consult_routing_rules.csv`, `coverage_assignments.csv`) is easy to get wrong — a reference to an `id` that was never defined in the base file (e.g. `locations.csv`) fails silently at seed time rather than at startup, since none of these columns are real JPA foreign keys. `scripts/seed_add.py` is a dev-only helper that does the fan-out for you from one small YAML file.
+
+Write a YAML file describing only what's new — an existing location/specialty referenced by slug (e.g. `oakland`) is not redefined:
+```yaml
+# scripts/my-additions.yaml
+locations:
+  - slug: fremont
+    display_name: Fremont
+    time_zone: America/Los_Angeles   # optional, defaults to America/Los_Angeles
+
+specialties:
+  - slug: surgeon
+    display_name: Surgeon
+
+providers:
+  - name: Dr. Martin Fernandes
+    specialty: surgeon               # must exist above or already in specialties.csv
+    location: fremont                # must exist above or already in locations.csv
+    role: PRIMARY_ONCALL             # optional, defaults to PRIMARY_ONCALL; must exist in on_call_roles.csv
+    contact:
+      type: MOBILE                   # MOBILE | OFFICE | TIE_LINE | PAGER | CHART_CHAT | BACKLINE
+      value: "908-0777"
+    department: true                 # optional, default true
+    routing_rules: true               # optional, default true
+    coverage: true                   # optional, default true
+```
+
+Run it (PyYAML lives in the AI service's venv, so use that interpreter):
+```bash
+ai-service/.venv/bin/python scripts/seed_add.py scripts/my-additions.yaml
+```
+
+It validates every reference first and writes nothing if anything doesn't resolve (e.g. a typo'd `location:` slug), so a bad file fails closed instead of producing a dangling reference. Re-running the same file is safe — anything that already exists (matched by slug/id) is skipped rather than duplicated. See `scripts/seed_add.example.yaml` for a fuller example, including adding a second provider/role to an already-existing location/specialty (no `locations:`/`specialties:` section needed in that case — just reference the slug under `providers:`).
+
+As with any CSV edit, restart the backend afterward to load the new rows.
+
 ### What must restart after a CSV change
 
 **Only the backend.** `SyntheticDataSeeder` runs once, at Spring Boot startup. The AI service and the frontend read no seed data at all and need no restart for a CSV edit.

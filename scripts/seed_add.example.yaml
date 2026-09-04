@@ -1,0 +1,37 @@
+# Example input for scripts/seed_add.py.
+#
+# Run:
+#   ai-service/.venv/bin/python scripts/seed_add.py scripts/seed_add.example.yaml
+#
+# Only list what's actually new. `providers[].location` / `.specialty` are
+# matched against `locations:`/`specialties:` below AND against what's
+# already in config/seed-data/*.csv -- an existing slug (e.g. "oakland") is
+# just referenced, not redefined.
+
+locations:
+  - slug: fremont
+    display_name: Fremont
+    time_zone: America/Los_Angeles   # optional, defaults to America/Los_Angeles
+
+specialties:
+  - slug: surgeon
+    display_name: Surgeon
+
+providers:
+  - name: Dr. Martin Fernandes
+    specialty: surgeon
+    location: fremont
+    role: PRIMARY_ONCALL             # optional, defaults to PRIMARY_ONCALL; must exist in on_call_roles.csv
+    contact:
+      type: MOBILE                   # MOBILE | OFFICE | TIE_LINE | PAGER | CHART_CHAT | BACKLINE
+      value: "908-0777"
+    department: true                 # optional, default true -- adds a departments.csv row
+    routing_rules: true              # optional, default true -- adds consult_routing_rules.csv rows
+    coverage: true                   # optional, default true -- adds the on-call coverage_assignments.csv row
+
+  # A second provider covering an existing location/specialty needs no new
+  # locations:/specialties: entries -- just reference them by slug:
+  # - name: Dr. Jamie Rivera
+  #   specialty: cardiology
+  #   location: oakland
+  #   role: BACKUP_ONCALL
